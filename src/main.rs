@@ -25,11 +25,6 @@ fn main() {
     app.run();
 }
 
-#[derive(Resource, Clone)]
-struct MyAssetHandle {
-    moon: Handle<Image>,
-}
-
 /// Sets up the N-body simulation
 fn setup(
     mut commands: Commands,
@@ -49,7 +44,7 @@ fn setup(
     commands.spawn(Camera2dBundle { ..default() });
 
     // Load the texture
-    let image_assets = MyAssetHandle {
+    let image_assets = CelestialBodyAssets {
         moon: asset_server.load("sprites/moon.png"),
     };
     commands.insert_resource(image_assets.clone());
@@ -117,6 +112,12 @@ fn setup(
         );
         commands.entity(entity).insert(Trail::default());
     }
+}
+
+// FIXME: Not required public??
+#[derive(Resource, Clone)]
+pub struct CelestialBodyAssets {
+    moon: Handle<Image>,
 }
 
 struct CelestialBody {
@@ -250,7 +251,7 @@ fn draw_polyline(mut gizmos: Gizmos, mut query: Query<(&mut Trail, &Transform)>)
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
-    asset_handle: Res<MyAssetHandle>,
+    asset_handle: Res<CelestialBodyAssets>,
     query: Query<(&Transform, &Velocity, &ReadMassProperties)>,
 ) {
     for collision_event in collision_events.read() {
@@ -260,52 +261,55 @@ pub fn combine_bodies(
             CollisionEvent::Stopped(..) => continue,
         };
 
-        if let (Ok((t1, v1, m1)), Ok((t2, v2, m2))) = (query.get(*e1), query.get(*e2)) {
-            // Calculate combined mass and velocity
-            let mass1 = m1.mass;
-            let mass2 = m2.mass;
-            let combined_mass = mass1 + mass2;
+        let properties = (query.get(*e1), query.get(*e2));
+        let (t1, v1, m1, t2, v2, m2) = match properties {
+            (Ok((t1, v1, m1)), Ok((t2, v2, m2))) => (t1, v1, m1, t2, v2, m2),
+            _ => continue,
+        };
 
-            let combined_velocity = (v1.linvel * mass1 + v2.linvel * mass2) / combined_mass;
-            if !combined_velocity.is_finite() {
-                continue;
-            }
+        // Calculate combined mass and velocity
+        let mass1 = m1.mass;
+        let mass2 = m2.mass;
+        let combined_mass = mass1 + mass2;
 
-            // Calculate new center of mass
-            let combined_position = (t1.translation.truncate() * mass1
-                + t2.translation.truncate() * mass2)
-                / combined_mass;
-
-            if !combined_position.is_finite() {
-                continue;
-            }
-
-            // Spawn new combined rigid body
-            let entity = commands.spawn_empty().id();
-            let radius = CelestialBody::radius_from_mass(combined_mass);
-            // Spawn the sprite
-            commands.entity(entity).insert(SpriteBundle {
-                texture: asset_handle.moon.clone(),
-                sprite: Sprite {
-                    custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
-                    ..Default::default()
-                },
-                ..Default::default()
-            });
-
-            add_celestial_body(
-                &mut commands,
-                entity,
-                CelestialBody::default()
-                    .with_mass(combined_mass)
-                    .with_position(combined_position)
-                    .with_velocity(combined_velocity),
-            );
-            commands.entity(entity).insert(Trail::default());
-
-            // Despawn old entities
-            commands.entity(*e1).despawn();
-            commands.entity(*e2).despawn();
+        let combined_velocity = (v1.linvel * mass1 + v2.linvel * mass2) / combined_mass;
+        if !combined_velocity.is_finite() {
+            continue;
         }
+
+        // Calculate new center of mass
+        let combined_position =
+            (t1.translation.truncate() * mass1 + t2.translation.truncate() * mass2) / combined_mass;
+
+        if !combined_position.is_finite() {
+            continue;
+        }
+
+        // Spawn new combined rigid body
+        let entity = commands.spawn_empty().id();
+        let radius = CelestialBody::radius_from_mass(combined_mass);
+        // Spawn the sprite
+        commands.entity(entity).insert(SpriteBundle {
+            texture: asset_handle.moon.clone(),
+            sprite: Sprite {
+                custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        add_celestial_body(
+            &mut commands,
+            entity,
+            CelestialBody::default()
+                .with_mass(combined_mass)
+                .with_position(combined_position)
+                .with_velocity(combined_velocity),
+        );
+        commands.entity(entity).insert(Trail::default());
+
+        // Despawn old entities
+        commands.entity(*e1).despawn();
+        commands.entity(*e2).despawn();
     }
 }
