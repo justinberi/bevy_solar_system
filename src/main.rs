@@ -149,7 +149,7 @@ fn spawn_celestial_body(commands: &mut Commands, body: CelestialBody) -> Entity 
             angvel: 0.0,
         })
         .insert(ActiveEvents::COLLISION_EVENTS);
-    // .insert(Sleeping::disabled()); // Zero out the collider properties so it doesn't contribute, appears that adding keeps the bodies awake.
+
     entity
 }
 
@@ -181,14 +181,6 @@ fn apply_gravity(
 
         force1.force += force;
         force2.force += -force;
-
-        // #[cfg(debug_assertions)]
-        // println!(
-        //     "force1: {}, m1: {}, r: {}",
-        //     force1.force,
-        //     m1.mass,
-        //     r2.sqrt()
-        // );
     }
 }
 
@@ -214,42 +206,41 @@ fn draw_polyline(mut gizmos: Gizmos, mut query: Query<(&mut Trail, &Transform)>)
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
-    mut contact_force_events: EventReader<ContactForceEvent>,
     query: Query<(&Transform, &Velocity, &ReadMassProperties)>,
 ) {
     for collision_event in collision_events.read() {
-        if let CollisionEvent::Started(e1, e2, _) = collision_event {
-            if let (Ok((t1, v1, m1)), Ok((t2, v2, m2))) = (query.get(*e1), query.get(*e2)) {
-                // Calculate combined mass and velocity
-                let mass1 = m1.mass;
-                let mass2 = m2.mass;
-                let combined_mass = mass1 + mass2;
+        // Check for the correct collision event, otherwise skip
+        let (e1, e2, _) = match collision_event {
+            CollisionEvent::Started(e1, e2, flags) => (e1, e2, flags),
+            CollisionEvent::Stopped(..) => continue,
+        };
 
-                let combined_velocity = (v1.linvel * mass1 + v2.linvel * mass2) / combined_mass;
+        if let (Ok((t1, v1, m1)), Ok((t2, v2, m2))) = (query.get(*e1), query.get(*e2)) {
+            // Calculate combined mass and velocity
+            let mass1 = m1.mass;
+            let mass2 = m2.mass;
+            let combined_mass = mass1 + mass2;
 
-                // Calculate new center of mass
-                let combined_position = (t1.translation.truncate() * mass1
-                    + t2.translation.truncate() * mass2)
-                    / combined_mass;
+            let combined_velocity = (v1.linvel * mass1 + v2.linvel * mass2) / combined_mass;
 
-                // Spawn new combined rigid body
-                let entity = spawn_celestial_body(
-                    &mut commands,
-                    CelestialBody::default()
-                        .with_mass(combined_mass)
-                        .with_position(combined_position)
-                        .with_velocity(combined_velocity),
-                );
-                commands.entity(entity).insert(Trail::default());
+            // Calculate new center of mass
+            let combined_position = (t1.translation.truncate() * mass1
+                + t2.translation.truncate() * mass2)
+                / combined_mass;
 
-                // Despawn old entities
-                commands.entity(*e1).despawn();
-                commands.entity(*e2).despawn();
-            }
+            // Spawn new combined rigid body
+            let entity = spawn_celestial_body(
+                &mut commands,
+                CelestialBody::default()
+                    .with_mass(combined_mass)
+                    .with_position(combined_position)
+                    .with_velocity(combined_velocity),
+            );
+            commands.entity(entity).insert(Trail::default());
+
+            // Despawn old entities
+            commands.entity(*e1).despawn();
+            commands.entity(*e2).despawn();
         }
-    }
-
-    for contact_force_event in contact_force_events.read() {
-        println!("Received contact force event: {contact_force_event:?}");
     }
 }
