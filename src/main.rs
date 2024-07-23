@@ -72,24 +72,44 @@ fn setup(
     commands.entity(entity).insert(Trail::default());
 
     let entity = commands.spawn_empty().id();
+    let mass = 5.0;
+    let radius = CelestialBody::radius_from_mass(mass);
+    commands.entity(entity).insert(SpriteBundle {
+        texture: image_assets.moon.clone(),
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+            ..Default::default()
+        },
+        ..Default::default()
+    });
     add_celestial_body(
         &mut commands,
         entity,
         CelestialBody::default()
             .with_position(Vec2::new(-100f32, 0f32))
             .with_velocity(Vec2::new(60.0, 60.0))
-            .with_mass(5.0),
+            .with_mass(mass),
     );
     commands.entity(entity).insert(Trail::default());
 
     let entity = commands.spawn_empty().id();
+    let mass = 5.0;
+    let radius = CelestialBody::radius_from_mass(mass);
+    commands.entity(entity).insert(SpriteBundle {
+        texture: image_assets.moon.clone(),
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+            ..Default::default()
+        },
+        ..Default::default()
+    });
     add_celestial_body(
         &mut commands,
         entity,
         CelestialBody::default()
             .with_position(Vec2::new(100f32, 0f32))
             .with_velocity(Vec2::new(-100.0, -100.0))
-            .with_mass(5.0),
+            .with_mass(mass),
     );
     commands.entity(entity).insert(Trail::default());
 
@@ -101,6 +121,15 @@ fn setup(
     for _ in 0..10 {
         let mass = rng.gen_range(0.1..1.0) as f32;
         let entity = commands.spawn_empty().id();
+        let radius = CelestialBody::radius_from_mass(mass);
+        commands.entity(entity).insert(SpriteBundle {
+            texture: image_assets.moon.clone(),
+            sprite: Sprite {
+                custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+                ..Default::default()
+            },
+            ..Default::default()
+        });
         add_celestial_body(
             &mut commands,
             entity,
