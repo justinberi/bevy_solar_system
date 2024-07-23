@@ -53,17 +53,7 @@ fn setup(
     let entity = commands.spawn_empty().id();
 
     let mass = 10.0;
-    let radius = CelestialBody::radius_from_mass(mass);
-    // Spawn the sprite
-    commands.entity(entity).insert(SpriteBundle {
-        texture: image_assets.moon.clone(),
-        sprite: Sprite {
-            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
-            ..Default::default()
-        },
-        ..Default::default()
-    });
-
+    add_sprite(&mut commands, entity, &image_assets, mass);
     add_celestial_body(
         &mut commands,
         entity,
@@ -73,15 +63,7 @@ fn setup(
 
     let entity = commands.spawn_empty().id();
     let mass = 5.0;
-    let radius = CelestialBody::radius_from_mass(mass);
-    commands.entity(entity).insert(SpriteBundle {
-        texture: image_assets.moon.clone(),
-        sprite: Sprite {
-            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    add_sprite(&mut commands, entity, &image_assets, mass);
     add_celestial_body(
         &mut commands,
         entity,
@@ -94,15 +76,7 @@ fn setup(
 
     let entity = commands.spawn_empty().id();
     let mass = 5.0;
-    let radius = CelestialBody::radius_from_mass(mass);
-    commands.entity(entity).insert(SpriteBundle {
-        texture: image_assets.moon.clone(),
-        sprite: Sprite {
-            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    add_sprite(&mut commands, entity, &image_assets, mass);
     add_celestial_body(
         &mut commands,
         entity,
@@ -121,15 +95,7 @@ fn setup(
     for _ in 0..10 {
         let mass = rng.gen_range(0.1..1.0) as f32;
         let entity = commands.spawn_empty().id();
-        let radius = CelestialBody::radius_from_mass(mass);
-        commands.entity(entity).insert(SpriteBundle {
-            texture: image_assets.moon.clone(),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
-                ..Default::default()
-            },
-            ..Default::default()
-        });
+        add_sprite(&mut commands, entity, &image_assets, mass);
         add_celestial_body(
             &mut commands,
             entity,
@@ -147,6 +113,23 @@ fn setup(
 #[derive(Resource, Clone)]
 pub struct CelestialBodyAssets {
     moon: Handle<Image>,
+}
+
+fn add_sprite(
+    commands: &mut Commands,
+    entity: Entity,
+    image_assets: &CelestialBodyAssets,
+    mass: f32,
+) {
+    let radius = CelestialBody::radius_from_mass(mass);
+    commands.entity(entity).insert(SpriteBundle {
+        texture: image_assets.moon.clone(),
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 struct CelestialBody {
@@ -280,7 +263,7 @@ fn draw_polyline(mut gizmos: Gizmos, mut query: Query<(&mut Trail, &Transform)>)
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
-    asset_handle: Res<CelestialBodyAssets>,
+    image_assets: Res<CelestialBodyAssets>,
     query: Query<(&Transform, &Velocity, &ReadMassProperties)>,
 ) {
     for collision_event in collision_events.read() {
@@ -316,16 +299,7 @@ pub fn combine_bodies(
 
         // Spawn new combined rigid body
         let entity = commands.spawn_empty().id();
-        let radius = CelestialBody::radius_from_mass(combined_mass);
-        // Spawn the sprite
-        commands.entity(entity).insert(SpriteBundle {
-            texture: asset_handle.moon.clone(),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
-                ..Default::default()
-            },
-            ..Default::default()
-        });
+        add_sprite(&mut commands, entity, &image_assets, combined_mass);
 
         add_celestial_body(
             &mut commands,
