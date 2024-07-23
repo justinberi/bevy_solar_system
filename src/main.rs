@@ -26,7 +26,16 @@ fn main() {
 }
 
 /// Sets up the N-body simulation
-fn setup(mut commands: Commands, mut rapier_config: ResMut<RapierConfiguration>) {
+fn setup(
+    mut commands: Commands,
+    mut rapier_config: ResMut<RapierConfiguration>,
+    rapier_context: Res<RapierContext>,
+) {
+    assert!(
+        rapier_context.integration_parameters.length_unit >= 1.0,
+        "pixels_per_meter must be >= 1.0"
+    );
+
     // Set gravity to zero for a space-like environment
     rapier_config.gravity = Vec2::ZERO;
 
@@ -98,6 +107,7 @@ impl CelestialBody {
         CelestialBody { velocity, ..*self }
     }
     fn with_mass(&self, mass: f32) -> Self {
+        assert!(mass > 0.0);
         CelestialBody { mass, ..*self }
     }
 
@@ -179,8 +189,10 @@ fn apply_gravity(
         let r2 = direction2.norm_squared();
         let force = gravitational_constant * m1.mass * m2.mass / r2 * direction2.normalize();
 
-        force1.force += force;
-        force2.force += -force;
+        if force.is_finite() {
+            force1.force += force;
+            force2.force += -force;
+        }
     }
 }
 
@@ -222,11 +234,18 @@ pub fn combine_bodies(
             let combined_mass = mass1 + mass2;
 
             let combined_velocity = (v1.linvel * mass1 + v2.linvel * mass2) / combined_mass;
+            if !combined_velocity.is_finite() {
+                continue;
+            }
 
             // Calculate new center of mass
             let combined_position = (t1.translation.truncate() * mass1
                 + t2.translation.truncate() * mass2)
                 / combined_mass;
+
+            if !combined_position.is_finite() {
+                continue;
+            }
 
             // Spawn new combined rigid body
             let entity = spawn_celestial_body(
