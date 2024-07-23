@@ -25,11 +25,17 @@ fn main() {
     app.run();
 }
 
+#[derive(Resource, Clone)]
+struct MyAssetHandle {
+    moon: Handle<Image>,
+}
+
 /// Sets up the N-body simulation
 fn setup(
     mut commands: Commands,
     mut rapier_config: ResMut<RapierConfiguration>,
     rapier_context: Res<RapierContext>,
+    asset_server: Res<AssetServer>,
 ) {
     assert!(
         rapier_context.integration_parameters.length_unit >= 1.0,
@@ -42,12 +48,38 @@ fn setup(
     // Camera
     commands.spawn(Camera2dBundle { ..default() });
 
+    // Load the texture
+    let image_assets = MyAssetHandle {
+        moon: asset_server.load("sprites/moon.png"),
+    };
+    commands.insert_resource(image_assets.clone());
+
     // Create bodies at know positions
-    let entity = spawn_celestial_body(&mut commands, CelestialBody::default().with_mass(10.0));
+    let entity = commands.spawn_empty().id();
+
+    let mass = 10.0;
+    let radius = CelestialBody::radius_from_mass(mass);
+    // Spawn the sprite
+    commands.entity(entity).insert(SpriteBundle {
+        texture: image_assets.moon.clone(),
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
+    add_celestial_body(
+        &mut commands,
+        entity,
+        CelestialBody::default().with_mass(mass),
+    );
     commands.entity(entity).insert(Trail::default());
 
-    let entity = spawn_celestial_body(
+    let entity = commands.spawn_empty().id();
+    add_celestial_body(
         &mut commands,
+        entity,
         CelestialBody::default()
             .with_position(Vec2::new(-100f32, 0f32))
             .with_velocity(Vec2::new(60.0, 60.0))
@@ -55,8 +87,10 @@ fn setup(
     );
     commands.entity(entity).insert(Trail::default());
 
-    let entity = spawn_celestial_body(
+    let entity = commands.spawn_empty().id();
+    add_celestial_body(
         &mut commands,
+        entity,
         CelestialBody::default()
             .with_position(Vec2::new(100f32, 0f32))
             .with_velocity(Vec2::new(-100.0, -100.0))
@@ -71,8 +105,10 @@ fn setup(
 
     for _ in 0..10 {
         let mass = rng.gen_range(0.1..1.0) as f32;
-        let entity = spawn_celestial_body(
+        let entity = commands.spawn_empty().id();
+        add_celestial_body(
             &mut commands,
+            entity,
             CelestialBody {
                 position: Vec2::gen_from_range(&mut rng, -400.0..400.0),
                 velocity: Vec2::gen_from_range(&mut rng, -50.0..50.0),
@@ -134,13 +170,11 @@ impl MyRand for Vec2 {
 /// Spawns a celesital body
 ///
 // TODO: Should I use a Bundle here?
-fn spawn_celestial_body(commands: &mut Commands, body: CelestialBody) -> Entity {
-    let entity = commands.spawn(RigidBody::Dynamic).id();
-
+fn add_celestial_body(commands: &mut Commands, entity: Entity, body: CelestialBody) {
     let radius = CelestialBody::radius_from_mass(body.mass);
-
     commands
         .entity(entity)
+        .insert(RigidBody::Dynamic)
         .insert(Collider::ball(radius))
         .insert(TransformBundle::from(Transform::from_xyz(
             body.position.x,
@@ -159,8 +193,6 @@ fn spawn_celestial_body(commands: &mut Commands, body: CelestialBody) -> Entity 
             angvel: 0.0,
         })
         .insert(ActiveEvents::COLLISION_EVENTS);
-
-    entity
 }
 
 /// Zeros out external_forces
@@ -218,6 +250,7 @@ fn draw_polyline(mut gizmos: Gizmos, mut query: Query<(&mut Trail, &Transform)>)
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
+    asset_handle: Res<MyAssetHandle>,
     query: Query<(&Transform, &Velocity, &ReadMassProperties)>,
 ) {
     for collision_event in collision_events.read() {
@@ -248,8 +281,21 @@ pub fn combine_bodies(
             }
 
             // Spawn new combined rigid body
-            let entity = spawn_celestial_body(
+            let entity = commands.spawn_empty().id();
+            let radius = CelestialBody::radius_from_mass(combined_mass);
+            // Spawn the sprite
+            commands.entity(entity).insert(SpriteBundle {
+                texture: asset_handle.moon.clone(),
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+
+            add_celestial_body(
                 &mut commands,
+                entity,
                 CelestialBody::default()
                     .with_mass(combined_mass)
                     .with_position(combined_position)
