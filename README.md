@@ -1,6 +1,17 @@
 # bevy_solar_system
 
+## Build
+```bash
+cargo run --release
+```
+
+## Documentation
+```bash
+cargo doc --no-deps --open
+```
+
 # TODO
+- [ ] Add sprites (When over certain mass, make them planet like. Add a sun sprite)
 - [ ] Add realtime print out.
 - [ ] Break up entitites into plugins for modularity.
 - [ ] Camera track largest mass.
