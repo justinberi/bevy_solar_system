@@ -115,6 +115,7 @@ pub struct CelestialBodyAssets {
     moon: Handle<Image>,
 }
 
+// TODO: Make this a setup system and change sprites depending on mass (ie asteriod, moon, planet, star, blackhole!)
 fn add_sprite(
     commands: &mut Commands,
     entity: Entity,
