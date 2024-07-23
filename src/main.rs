@@ -3,10 +3,12 @@ use bevy_rapier2d::prelude::*;
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use std::f32::consts::PI;
 use std::ops::Range;
 
 use ringbuffer::{ConstGenericRingBuffer, RingBuffer};
 
+/// The main function of the game
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
@@ -23,6 +25,7 @@ fn main() {
     app.run();
 }
 
+/// Sets up the N-body simulation
 fn setup(mut commands: Commands, mut rapier_config: ResMut<RapierConfiguration>) {
     // Set gravity to zero for a space-like environment
     rapier_config.gravity = Vec2::ZERO;
@@ -98,11 +101,15 @@ impl CelestialBody {
         CelestialBody { mass, ..*self }
     }
 
+    /// Calculates the body's radius given mass.
+    ///
+    /// Assumes a constant density.
     fn radius_from_mass(mass: f32) -> f32 {
-        2.0 * mass
+        5.0 * (mass / 2.0 * PI).sqrt()
     }
 }
 
+/// Helper trait for generating random numbers for different types
 trait MyRand {
     fn gen_from_range(g: &mut StdRng, range: Range<f32>) -> Self;
 }
@@ -114,7 +121,9 @@ impl MyRand for Vec2 {
     }
 }
 
-// FIXME: Use a builder pattern to provide default and optionals or create a Bundle
+/// Spawns a celesital body
+///
+// TODO: Should I use a Bundle here?
 fn spawn_celestial_body(commands: &mut Commands, body: CelestialBody) -> Entity {
     let entity = commands.spawn(RigidBody::Dynamic).id();
 
@@ -144,12 +153,15 @@ fn spawn_celestial_body(commands: &mut Commands, body: CelestialBody) -> Entity 
     entity
 }
 
+/// Zeros out external_forces
 fn reset_forces(mut query: Query<&mut ExternalForce>) {
     for mut external_forces in &mut query {
         external_forces.force = Vec2::default();
     }
 }
 
+/// Applies gravitational attraction contributions from all bodies.
+// FIXME: Should use a "CelestialBody" component to differentiate from other bodies
 fn apply_gravity(
     rapier_context: Res<RapierContext>,
     mut query: Query<(&mut ExternalForce, &Transform, &ReadMassProperties)>,
@@ -186,6 +198,7 @@ struct Trail {
     buffer: ConstGenericRingBuffer<Vec2, TRAIL_LENGTH>,
 }
 
+/// Draws a polyline for any entity that has a Trail component
 // FIXME: The clone here is probs really bad performance due to .into() on the trail.
 fn draw_polyline(mut gizmos: Gizmos, mut query: Query<(&mut Trail, &Transform)>) {
     for (mut trail, transform) in &mut query {
@@ -196,6 +209,8 @@ fn draw_polyline(mut gizmos: Gizmos, mut query: Query<(&mut Trail, &Transform)>)
     }
 }
 
+/// Combines the momentum of two bodies that collide
+// TODO: Only do this when they have a stable collision
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
