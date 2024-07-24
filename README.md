@@ -11,7 +11,8 @@ cargo doc --no-deps --open
 ```
 
 # TODO
-- [ ] Add sprites (When over certain mass, make them planet like. Add a sun sprite)
+- [x] Add sprites (When over certain mass, make them planet like. Add a sun sprite)
+- [x] Change sprite type based on mass.
 - [ ] Add realtime print out.
 - [ ] Break up entitites into plugins for modularity.
 - [ ] Camera track largest mass.

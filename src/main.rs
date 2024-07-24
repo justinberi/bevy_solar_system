@@ -46,6 +46,8 @@ fn setup(
     // Load the texture
     let image_assets = CelestialBodyAssets {
         moon: asset_server.load("sprites/moon.png"),
+        earth: asset_server.load("sprites/earth.png"),
+        sun: asset_server.load("sprites/sun.png"),
     };
     commands.insert_resource(image_assets.clone());
 
@@ -113,6 +115,8 @@ fn setup(
 #[derive(Resource, Clone)]
 pub struct CelestialBodyAssets {
     moon: Handle<Image>,
+    earth: Handle<Image>,
+    sun: Handle<Image>,
 }
 
 // TODO: Make this a setup system and change sprites depending on mass (ie asteriod, moon, planet, star, blackhole!)
@@ -122,9 +126,16 @@ fn add_sprite(
     image_assets: &CelestialBodyAssets,
     mass: f32,
 ) {
+    let image = if mass < 1.0 {
+        image_assets.moon.clone()
+    } else if mass < 7.0 {
+        image_assets.earth.clone()
+    } else {
+        image_assets.sun.clone()
+    };
     let radius = CelestialBody::radius_from_mass(mass);
     commands.entity(entity).insert(SpriteBundle {
-        texture: image_assets.moon.clone(),
+        texture: image,
         sprite: Sprite {
             custom_size: Some(Vec2::new(2.0 * radius, 2.0 * radius)), // Set the desired size here
             ..Default::default()
