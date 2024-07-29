@@ -1,6 +1,6 @@
 use bevy::{math::NormedVectorSpace, prelude::*};
 use bevy_rapier2d::prelude::*;
-use std::{borrow::Borrow, f32::consts::PI};
+use std::f32::consts::PI;
 
 pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
@@ -213,10 +213,14 @@ pub fn combine_bodies(
         // Add a fading trail
         let fadout_time = 4f32;
         let mut trail1 = trail1.with_fadeout(fadout_time);
-        trail1.add_vertex(combined_position);
-        commands.spawn(trail1);
         let mut trail2 = trail2.with_fadeout(fadout_time);
-        trail2.add_vertex(combined_position);
+
+        if mass1 > mass2 {
+            trail1.add_vertex(combined_position);
+        } else {
+            trail2.add_vertex(combined_position);
+        }
+        commands.spawn(trail1);
         commands.spawn(trail2);
 
         // Despawn old entities
