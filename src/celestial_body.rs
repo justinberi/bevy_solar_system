@@ -1,6 +1,6 @@
 use bevy::{math::NormedVectorSpace, prelude::*};
 use bevy_rapier2d::prelude::*;
-use std::f32::consts::PI;
+use std::{borrow::Borrow, f32::consts::PI};
 
 pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
@@ -161,7 +161,7 @@ pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
     image_assets: Res<CelestialBodyAssets>,
-    query: Query<(&Transform, &Velocity, &ReadMassProperties)>,
+    query: Query<(&Transform, &Velocity, &ReadMassProperties, &Trail)>,
 ) {
     for collision_event in collision_events.read() {
         // Check for the correct collision event, otherwise skip
@@ -171,8 +171,10 @@ pub fn combine_bodies(
         };
 
         let properties = (query.get(*e1), query.get(*e2));
-        let (t1, v1, m1, t2, v2, m2) = match properties {
-            (Ok((t1, v1, m1)), Ok((t2, v2, m2))) => (t1, v1, m1, t2, v2, m2),
+        let (t1, v1, m1, trail1, t2, v2, m2, trail2) = match properties {
+            (Ok((t1, v1, m1, trail1)), Ok((t2, v2, m2, trail2))) => {
+                (t1, v1, m1, trail1, t2, v2, m2, trail2)
+            }
             _ => continue,
         };
 
@@ -206,9 +208,16 @@ pub fn combine_bodies(
                 .with_position(combined_position)
                 .with_velocity(combined_velocity),
         );
-
-        // TODO: Maybe using <dyn Bundle> to insert this trail.
         commands.entity(entity).insert(Trail::default());
+
+        // Add a fading trail
+        let fadout_time = 4f32;
+        let mut trail1 = trail1.with_fadeout(fadout_time);
+        trail1.add_vertex(combined_position);
+        commands.spawn(trail1);
+        let mut trail2 = trail2.with_fadeout(fadout_time);
+        trail2.add_vertex(combined_position);
+        commands.spawn(trail2);
 
         // Despawn old entities
         commands.entity(*e1).despawn();
