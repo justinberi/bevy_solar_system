@@ -15,7 +15,7 @@ cargo doc --no-deps --open
 - [x] Change sprite type based on mass.
 - [x] Add realtime print out.
 - [x] Break up entitites into plugins for modularity.
-- [ ] Camera track largest mass.
+- [x] ~~Camera track largest mass~~ - too disorientating. 
 - [x] Check for collisions and conserve momentum.
 - [ ] Add predicted path (based on 1 body).
 - [x] Have deleted trails fade out (move the trail to a component without a rigid body and fade after in N frames - do this as another struct that adds a fade out param).
