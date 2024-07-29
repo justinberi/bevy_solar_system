@@ -37,7 +37,7 @@ fn setup(
     mut commands: Commands,
     mut rapier_config: ResMut<RapierConfiguration>,
     rapier_context: Res<RapierContext>,
-    asset_server: Res<AssetServer>,
+    celestial_body_assets: Res<CelestialBodyAssets>,
 ) {
     assert!(
         rapier_context.integration_parameters.length_unit >= 1.0,
@@ -50,15 +50,11 @@ fn setup(
     // Camera
     commands.spawn(Camera2dBundle { ..default() });
 
-    // Load the texture
-    let image_assets = CelestialBodyAssets::load_assets(asset_server);
-    commands.insert_resource(image_assets.clone());
-
     // Create bodies at know positions
     let entity = commands.spawn_empty().id();
 
     let mass = 10.0;
-    add_sprite(&mut commands, entity, &image_assets, mass);
+    add_sprite(&mut commands, entity, &celestial_body_assets, mass);
     add_celestial_body(
         &mut commands,
         entity,
@@ -68,7 +64,7 @@ fn setup(
 
     let entity = commands.spawn_empty().id();
     let mass = 5.0;
-    add_sprite(&mut commands, entity, &image_assets, mass);
+    add_sprite(&mut commands, entity, &celestial_body_assets, mass);
     add_celestial_body(
         &mut commands,
         entity,
@@ -81,7 +77,7 @@ fn setup(
 
     let entity = commands.spawn_empty().id();
     let mass = 5.0;
-    add_sprite(&mut commands, entity, &image_assets, mass);
+    add_sprite(&mut commands, entity, &celestial_body_assets, mass);
     add_celestial_body(
         &mut commands,
         entity,
@@ -100,7 +96,7 @@ fn setup(
     for _ in 0..10 {
         let mass = rng.gen_range(0.1..1.0) as f32;
         let entity = commands.spawn_empty().id();
-        add_sprite(&mut commands, entity, &image_assets, mass);
+        add_sprite(&mut commands, entity, &celestial_body_assets, mass);
         add_celestial_body(
             &mut commands,
             entity,

@@ -5,13 +5,14 @@ use std::f32::consts::PI;
 pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedFirst, reset_forces.in_set(PhysicsSet::SyncBackend)) // Zero forces before physics step
-            .add_systems(FixedUpdate, apply_gravity.in_set(PhysicsSet::SyncBackend)) // Apply gravity forces before physics step;
-            .add_systems(FixedUpdate, combine_bodies); // Conserve momentum in collisions an combine
+        app.add_systems(FixedFirst, reset_forces.in_set(PhysicsSet::SyncBackend))
+            .add_systems(FixedUpdate, apply_gravity.in_set(PhysicsSet::SyncBackend))
+            .add_systems(FixedUpdate, combine_bodies)
+            .init_resource::<CelestialBodyAssets>();
     }
 }
 
-// FIXME: Not required public??
+// https://bevy-cheatbook.github.io/programming/res.html
 #[derive(Resource, Clone)]
 pub struct CelestialBodyAssets {
     moon: Handle<Image>,
@@ -19,9 +20,9 @@ pub struct CelestialBodyAssets {
     sun: Handle<Image>,
 }
 
-impl CelestialBodyAssets {
-    // TODO: Make singleton pattern??
-    pub fn load_assets(asset_server: Res<AssetServer>) -> Self {
+impl FromWorld for CelestialBodyAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
         Self {
             moon: asset_server.load("sprites/moon.png"),
             earth: asset_server.load("sprites/earth.png"),
