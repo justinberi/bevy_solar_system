@@ -1,6 +1,6 @@
 mod celestial_body;
-mod lines;
 mod stats;
+mod trails;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -8,7 +8,7 @@ use bevy_rapier2d::prelude::*;
 use celestial_body::{
     add_celestial_body, add_sprite, CelestialBody, CelestialBodyAssets, CelestialBodyPlugin,
 };
-use lines::{Trail, TrailsPlugin};
+use trails::{Trail, TrailsPlugin};
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};

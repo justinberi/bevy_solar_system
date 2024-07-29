@@ -153,6 +153,8 @@ pub fn apply_gravity(
     }
 }
 
+use crate::Trail;
+
 /// Combines the momentum of two bodies that collide
 // TODO: Only do this when they have a stable collision
 pub fn combine_bodies(
@@ -205,8 +207,8 @@ pub fn combine_bodies(
                 .with_velocity(combined_velocity),
         );
 
-        //FIXME: Add back
-        // commands.entity(entity).insert(Trail::default());
+        // TODO: Maybe using <dyn Bundle> to insert this trail.
+        commands.entity(entity).insert(Trail::default());
 
         // Despawn old entities
         commands.entity(*e1).despawn();
