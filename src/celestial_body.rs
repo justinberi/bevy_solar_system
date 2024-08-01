@@ -157,6 +157,7 @@ use crate::Trail;
 
 /// Combines the momentum of two bodies that collide
 // TODO: Only do this when they have a stable collision
+// TODO: Optional trail with Option<&Trail>
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,

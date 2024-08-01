@@ -132,6 +132,7 @@ fn spawn_entity_on_click(
     mut commands: Commands,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
+    celestial_body_assets: Res<CelestialBodyAssets>,
     camera_q: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
     // Check if the left mouse button was just pressed
@@ -148,20 +149,20 @@ fn spawn_entity_on_click(
             .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
         {
             // Spawn a new entity at the cursor's world position
-            commands.spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: Color::rgb(0.8, 0.2, 0.3),
-                    custom_size: Some(Vec2::new(20.0, 20.0)),
-                    ..default()
+            // let mass = rng.gen_range(0.1..1.0) as f32;
+            let mass = 1.0;
+            let entity = commands.spawn_empty().id();
+            add_sprite(&mut commands, entity, &celestial_body_assets, mass);
+            add_celestial_body(
+                &mut commands,
+                entity,
+                CelestialBody {
+                    position: world_position,
+                    velocity: Vec2::new(0., 0.),
+                    mass,
                 },
-                transform: Transform::from_translation(world_position.extend(0.0)),
-                ..default()
-            });
-
-            println!(
-                "Spawned entity at: {}/{}",
-                world_position.x, world_position.y
             );
+            commands.entity(entity).insert(Trail::default());
         }
     }
 }
