@@ -22,7 +22,8 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
         .add_plugins(CelestialBodyPlugin)
         .add_plugins(TrailsPlugin)
-        .add_systems(Startup, setup);
+        .add_systems(Startup, setup)
+        .add_systems(Update, spawn_entity_on_click);
 
     #[cfg(debug_assertions)]
     app.add_plugins(RapierDebugRenderPlugin::default());
@@ -31,6 +32,9 @@ fn main() {
 
     app.run();
 }
+
+#[derive(Component)]
+struct MainCamera;
 
 /// Sets up the N-body simulation
 fn setup(
@@ -48,7 +52,9 @@ fn setup(
     rapier_config.gravity = Vec2::ZERO;
 
     // Camera
-    commands.spawn(Camera2dBundle { ..default() });
+    commands
+        .spawn(Camera2dBundle { ..default() })
+        .insert(MainCamera);
 
     // Create bodies at know positions
     let entity = commands.spawn_empty().id();
@@ -119,5 +125,43 @@ trait MyRand {
 impl MyRand for Vec2 {
     fn gen_from_range(g: &mut StdRng, range: Range<f32>) -> Self {
         Vec2::new(g.gen_range(range.clone()), g.gen_range(range.clone()))
+    }
+}
+
+fn spawn_entity_on_click(
+    mut commands: Commands,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+) {
+    // Check if the left mouse button was just pressed
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        // Get the primary window
+        let window = windows.single();
+
+        // Get the camera
+        let (camera, camera_transform) = camera_q.single();
+
+        // Get the cursor position
+        if let Some(world_position) = window
+            .cursor_position()
+            .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
+        {
+            // Spawn a new entity at the cursor's world position
+            commands.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::rgb(0.8, 0.2, 0.3),
+                    custom_size: Some(Vec2::new(20.0, 20.0)),
+                    ..default()
+                },
+                transform: Transform::from_translation(world_position.extend(0.0)),
+                ..default()
+            });
+
+            println!(
+                "Spawned entity at: {}/{}",
+                world_position.x, world_position.y
+            );
+        }
     }
 }
