@@ -8,7 +8,7 @@ use crate::MainCamera;
 pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0));
+        app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0)); //FIXME: This is broken
 
         #[cfg(debug_assertions)]
         app.add_plugins(RapierDebugRenderPlugin::default());
