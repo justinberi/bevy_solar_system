@@ -150,10 +150,11 @@ pub fn add_celestial_body(commands: &mut Commands, entity: Entity, body: Celesti
         .insert(TwoBodyProblem::default());
 }
 
-/// Zeros out external_forces
-pub fn reset_forces(mut query: Query<&mut ExternalForce>) {
-    for mut external_forces in &mut query {
+/// Zeros out external_forces and two body problem influence
+fn reset_forces(mut query: Query<(&mut ExternalForce, &mut TwoBodyProblem)>) {
+    for (mut external_forces, mut two_body_problem) in &mut query {
         external_forces.force = Vec2::default();
+        *two_body_problem = TwoBodyProblem::default();
     }
 }
 
@@ -379,6 +380,7 @@ fn spawn_on_mouse_drag(
 }
 
 // Note this is inefficient as it will double up lines
+// TODO: Could potentially add the TwoBodyProblem as another entity ID but meh
 fn debug_draw_two_body_connection(
     world: &World,
     mut gizmos: Gizmos,
