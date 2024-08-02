@@ -2,13 +2,27 @@ use bevy::{math::NormedVectorSpace, prelude::*};
 use bevy_rapier2d::prelude::*;
 use std::f32::consts::PI;
 
+// TODO: This is probs going to break things.
+use crate::MainCamera;
+
 pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0)); //FIXME: This is broken
+
+        #[cfg(debug_assertions)]
+        app.add_plugins(RapierDebugRenderPlugin::default());
+
         app.add_systems(FixedFirst, reset_forces.in_set(PhysicsSet::SyncBackend))
             .add_systems(FixedUpdate, apply_gravity.in_set(PhysicsSet::SyncBackend))
             .add_systems(FixedUpdate, combine_bodies)
             .init_resource::<CelestialBodyAssets>();
+
+        app.init_resource::<MouseDragState>();
+        app.add_systems(Update, spawn_on_mouse_drag);
+
+        #[cfg(debug_assertions)]
+        app.add_systems(Update, debug_draw_two_body_connection);
     }
 }
 
@@ -92,6 +106,21 @@ impl CelestialBody {
     }
 }
 
+#[derive(Component, Default)]
+struct TwoBodyProblem {
+    entity: Option<Entity>,
+    force: Option<f32>,
+}
+
+impl TwoBodyProblem {
+    fn update(&mut self, entity: Entity, force: f32) {
+        *self = Self {
+            entity: Some(entity),
+            force: Some(force),
+        };
+    }
+}
+
 /// Spawns a celesital body
 ///
 // TODO: Should I use a Bundle here?
@@ -117,29 +146,38 @@ pub fn add_celestial_body(commands: &mut Commands, entity: Entity, body: Celesti
             linvel: body.velocity,
             angvel: 0.0,
         })
-        .insert(ActiveEvents::COLLISION_EVENTS);
+        .insert(ActiveEvents::COLLISION_EVENTS)
+        .insert(TwoBodyProblem::default());
 }
 
-/// Zeros out external_forces
-pub fn reset_forces(mut query: Query<&mut ExternalForce>) {
-    for mut external_forces in &mut query {
+/// Zeros out external_forces and two body problem influence
+fn reset_forces(mut query: Query<(&mut ExternalForce, &mut TwoBodyProblem)>) {
+    for (mut external_forces, mut two_body_problem) in &mut query {
         external_forces.force = Vec2::default();
+        *two_body_problem = TwoBodyProblem::default();
     }
 }
 
 /// Applies gravitational attraction contributions from all bodies.
 // FIXME: Should use a "CelestialBody" component to differentiate from other bodies
-pub fn apply_gravity(
+fn apply_gravity(
     rapier_context: Res<RapierContext>,
-    mut query: Query<(&mut ExternalForce, &Transform, &ReadMassProperties)>,
+    mut query: Query<(
+        Entity,
+        &mut ExternalForce,
+        &Transform,
+        &ReadMassProperties,
+        &mut TwoBodyProblem,
+    )>,
 ) {
     // Scale to SI units for force calculations
     let pixels_per_meter = rapier_context.integration_parameters.length_unit;
     let gravitational_constant = 10.0;
     let mut bodies = query.iter_combinations_mut();
 
-    while let Some([(mut force1, transform1, m1), (mut force2, transform2, m2)]) =
-        bodies.fetch_next()
+    while let Some(
+        [(entity1, mut force1, transform1, m1, mut two_body1), (entity2, mut force2, transform2, m2, mut two_body2)],
+    ) = bodies.fetch_next()
     {
         let direction = (transform2.translation - transform1.translation) / pixels_per_meter; //FIXME: Get this scale from the physics config
         let direction2 = Vec2::new(direction.x, direction.y);
@@ -149,6 +187,14 @@ pub fn apply_gravity(
         if force.is_finite() {
             force1.force += force;
             force2.force += -force;
+
+            // If the force is most influential, store the two body problem
+            if two_body1.force.is_none() || two_body1.force.unwrap() < force.length() {
+                two_body1.update(entity2, force.length())
+            }
+            if two_body2.force.is_none() || two_body2.force.unwrap() < force.length() {
+                two_body2.update(entity1, force.length())
+            }
         }
     }
 }
@@ -157,6 +203,7 @@ use crate::Trail;
 
 /// Combines the momentum of two bodies that collide
 // TODO: Only do this when they have a stable collision
+// TODO: Optional trail with Option<&Trail>
 pub fn combine_bodies(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionEvent>,
@@ -211,7 +258,7 @@ pub fn combine_bodies(
         commands.entity(entity).insert(Trail::default());
 
         // Add a fading trail
-        let fadout_time = 4f32;
+        let fadout_time = 2f32;
         let mut trail1 = trail1.with_fadeout(fadout_time);
         let mut trail2 = trail2.with_fadeout(fadout_time);
 
@@ -226,5 +273,127 @@ pub fn combine_bodies(
         // Despawn old entities
         commands.entity(*e1).despawn();
         commands.entity(*e2).despawn();
+    }
+}
+
+#[derive(Default, Resource)]
+struct MouseDragState {
+    dragging: bool,
+    initial_position: Option<Vec2>,
+    current_position: Option<Vec2>,
+    entity: Option<Entity>,
+}
+
+impl MouseDragState {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+// TODO: Split this into generating a non interacting sprite and then another system to convert it to a body
+fn spawn_on_mouse_drag(
+    mut commands: Commands,
+    mut drag_state: ResMut<MouseDragState>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    celestial_body_assets: Res<CelestialBodyAssets>,
+    mut gizmos: Gizmos,
+    windows: Query<&Window>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+) {
+    // Get the primary window
+    let window = windows.single();
+
+    // Get the camera
+    let (camera, camera_transform) = camera_q.single();
+
+    let mass = 1.0;
+
+    // Check if the left mouse button is pressed
+    if mouse_button_input.just_pressed(MouseButton::Left) {
+        drag_state.dragging = true;
+        if let Some(world_position) = window
+            .cursor_position()
+            .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
+        {
+            let entity = commands.spawn_empty().id();
+            add_sprite(&mut commands, entity, &celestial_body_assets, mass);
+            commands
+                .entity(entity)
+                .insert(Transform::from_translation(world_position.extend(0.0)));
+
+            // Store the data
+            drag_state.initial_position = Some(world_position);
+            drag_state.entity = Some(entity);
+        }
+    }
+
+    // Get the current position based on mouse motion
+    if drag_state.dragging {
+        if let Some(world_position) = window
+            .cursor_position()
+            .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
+        {
+            drag_state.current_position = Some(world_position);
+        }
+    }
+
+    // Draw a vector using gizmos if we have valid positions
+    if let (Some(initial_position), Some(current_position)) =
+        (drag_state.initial_position, drag_state.current_position)
+    {
+        let red = Color::srgb(1.0, 0.0, 0.0);
+        gizmos.linestrip_2d(vec![initial_position, current_position], red);
+    }
+
+    if mouse_button_input.just_released(MouseButton::Left) {
+        // Spawn the entity
+        // Spawn a new entity at the cursor's world position
+        // let mass = rng.gen_range(0.1..1.0) as f32;
+        let entity = commands.spawn_empty().id();
+
+        if let (Some(inital_position), Some(current_position)) =
+            (drag_state.initial_position, drag_state.current_position)
+        {
+            let velocity_scaled = inital_position - current_position;
+
+            add_sprite(&mut commands, entity, &celestial_body_assets, mass);
+            add_celestial_body(
+                &mut commands,
+                entity,
+                CelestialBody {
+                    position: inital_position,
+                    velocity: velocity_scaled,
+                    mass,
+                },
+            );
+            commands.entity(entity).insert(Trail::default());
+        }
+
+        // Remove the ghost
+        if let Some(entity) = drag_state.entity {
+            commands.entity(entity).despawn();
+        }
+
+        // Clear it
+        drag_state.reset();
+    }
+}
+
+// Note this is inefficient as it will double up lines
+// TODO: Could potentially add the TwoBodyProblem as another entity ID but meh
+fn debug_draw_two_body_connection(
+    world: &World,
+    mut gizmos: Gizmos,
+    query: Query<(&Transform, &TwoBodyProblem)>,
+) {
+    for (transform, two_body_problem) in &query {
+        if let Some(other_entity) = two_body_problem.entity {
+            if let Some(other_transform) = world.get::<Transform>(other_entity) {
+                let color = Color::BLACK;
+                let start = transform.translation.truncate();
+                let end = other_transform.translation.truncate();
+                gizmos.line_2d(start, end, color);
+            }
+        }
     }
 }

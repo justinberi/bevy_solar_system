@@ -19,18 +19,17 @@ use std::ops::Range;
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
         .add_plugins(CelestialBodyPlugin)
         .add_plugins(TrailsPlugin)
         .add_systems(Startup, setup);
-
-    #[cfg(debug_assertions)]
-    app.add_plugins(RapierDebugRenderPlugin::default());
 
     app.add_plugins(StatsPlugin);
 
     app.run();
 }
+
+#[derive(Component)]
+struct MainCamera;
 
 /// Sets up the N-body simulation
 fn setup(
@@ -48,7 +47,9 @@ fn setup(
     rapier_config.gravity = Vec2::ZERO;
 
     // Camera
-    commands.spawn(Camera2dBundle { ..default() });
+    commands
+        .spawn(Camera2dBundle { ..default() })
+        .insert(MainCamera);
 
     // Create bodies at know positions
     let entity = commands.spawn_empty().id();
