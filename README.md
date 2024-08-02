@@ -17,9 +17,9 @@ cargo doc --no-deps --open
 - [x] Break up entitites into plugins for modularity.
 - [x] ~~Camera track largest mass~~ - too disorientating. 
 - [x] Check for collisions and conserve momentum.
-- [ ] Add predicted path (based on 1 body).
 - [x] Have deleted trails fade out (move the trail to a component without a rigid body and fade after in N frames - do this as another struct that adds a fade out param).
 - [ ] Lessen rotational inertial, so it spins when struct (might need to reduce restitution too) (or just conserve rotational inertia ... ). Then combine when they settle?
 - [ ] Document the functions so we can learn from it.
 - [x] Add mouse interaction to add new bodies.
-- [ ] Add velocity based on mouse drag.
+    - [ ] Add predicted path (based on 1 body).
+    - [ ] Add velocity based on mouse drag.

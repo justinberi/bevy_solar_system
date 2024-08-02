@@ -212,7 +212,7 @@ pub fn combine_bodies(
         commands.entity(entity).insert(Trail::default());
 
         // Add a fading trail
-        let fadout_time = 4f32;
+        let fadout_time = 2f32;
         let mut trail1 = trail1.with_fadeout(fadout_time);
         let mut trail2 = trail2.with_fadeout(fadout_time);
 
