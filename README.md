@@ -21,5 +21,5 @@ cargo doc --no-deps --open
 - [ ] Lessen rotational inertial, so it spins when struct (might need to reduce restitution too) (or just conserve rotational inertia ... ). Then combine when they settle?
 - [ ] Document the functions so we can learn from it.
 - [x] Add mouse interaction to add new bodies.
-    - [ ] Add predicted path (based on 1 body).
-    - [ ] Add velocity based on mouse drag.
+    - [ ] Add predicted path (based most influential body (Force) stored in the apply gravity system). - Create a PredictionTrail component.
+    - [x] Add velocity based on mouse drag.

@@ -136,6 +136,7 @@ struct MouseDragState {
     dragging: bool,
     initial_position: Option<Vec2>,
     current_position: Option<Vec2>,
+    entity: Option<Entity>,
 }
 
 impl MouseDragState {
@@ -160,6 +161,8 @@ fn spawn_on_mouse_drag(
     // Get the camera
     let (camera, camera_transform) = camera_q.single();
 
+    let mass = 1.0;
+
     // Check if the left mouse button is pressed
     if mouse_button_input.just_pressed(MouseButton::Left) {
         drag_state.dragging = true;
@@ -167,7 +170,15 @@ fn spawn_on_mouse_drag(
             .cursor_position()
             .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
         {
+            let entity = commands.spawn_empty().id();
+            add_sprite(&mut commands, entity, &celestial_body_assets, mass);
+            commands
+                .entity(entity)
+                .insert(Transform::from_translation(world_position.extend(0.0)));
+
+            // Store the data
             drag_state.initial_position = Some(world_position);
+            drag_state.entity = Some(entity);
         }
     }
 
@@ -193,13 +204,12 @@ fn spawn_on_mouse_drag(
         // Spawn the entity
         // Spawn a new entity at the cursor's world position
         // let mass = rng.gen_range(0.1..1.0) as f32;
-        let mass = 1.0;
         let entity = commands.spawn_empty().id();
 
         if let (Some(inital_position), Some(current_position)) =
             (drag_state.initial_position, drag_state.current_position)
         {
-            let velocity = inital_position - current_position;
+            let velocity_scaled = inital_position - current_position;
 
             add_sprite(&mut commands, entity, &celestial_body_assets, mass);
             add_celestial_body(
@@ -207,53 +217,19 @@ fn spawn_on_mouse_drag(
                 entity,
                 CelestialBody {
                     position: inital_position,
-                    velocity: velocity,
+                    velocity: velocity_scaled,
                     mass,
                 },
             );
             commands.entity(entity).insert(Trail::default());
+        }
+
+        // Remove the ghost
+        if let Some(entity) = drag_state.entity {
+            commands.entity(entity).despawn();
         }
 
         // Clear it
         drag_state.reset();
-    }
-}
-
-fn spawn_entity_on_click(
-    mut commands: Commands,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    windows: Query<&Window>,
-    celestial_body_assets: Res<CelestialBodyAssets>,
-    camera_q: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
-) {
-    // Check if the left mouse button was just pressed
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        // Get the primary window
-        let window = windows.single();
-
-        // Get the camera
-        let (camera, camera_transform) = camera_q.single();
-
-        // Get the cursor position
-        if let Some(world_position) = window
-            .cursor_position()
-            .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
-        {
-            // Spawn a new entity at the cursor's world position
-            // let mass = rng.gen_range(0.1..1.0) as f32;
-            let mass = 1.0;
-            let entity = commands.spawn_empty().id();
-            add_sprite(&mut commands, entity, &celestial_body_assets, mass);
-            add_celestial_body(
-                &mut commands,
-                entity,
-                CelestialBody {
-                    position: world_position,
-                    velocity: Vec2::new(0., 0.),
-                    mass,
-                },
-            );
-            commands.entity(entity).insert(Trail::default());
-        }
     }
 }
