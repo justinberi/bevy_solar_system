@@ -25,6 +25,8 @@ fn main() {
 
     app.add_plugins(StatsPlugin);
 
+    app.add_systems(Update, pan_camera);
+
     app.run();
 }
 
@@ -121,4 +123,44 @@ impl MyRand for Vec2 {
     fn gen_from_range(g: &mut StdRng, range: Range<f32>) -> Self {
         Vec2::new(g.gen_range(range.clone()), g.gen_range(range.clone()))
     }
+}
+
+const EDGE_THRESHOLD: f32 = 50.0;
+const CAMERA_SPEED: f32 = 10.0;
+
+fn pan_camera(
+    mut query: Query<(&Camera, &GlobalTransform, &mut Transform), With<MainCamera>>,
+    windows: Query<&Window>,
+) {
+    let window = windows.single();
+    let (camera, camera_global_transform, mut camera_transform) = query.single_mut();
+
+    let window_width = window.width();
+    let window_height = window.height();
+
+    if let Some(mouse_position) = windows.single().cursor_position() {
+        let left = mouse_position.x < EDGE_THRESHOLD;
+        let right = mouse_position.x > window_width - EDGE_THRESHOLD;
+        let top = mouse_position.y < EDGE_THRESHOLD;
+        let bottom = mouse_position.y > window_height - EDGE_THRESHOLD;
+
+        if left || right || top || bottom {
+            // Game coords of the mouse
+            let mouse_world_position = camera
+                .viewport_to_world_2d(camera_global_transform, mouse_position)
+                .unwrap();
+
+            // Game coords of the screen centre
+            let window_center_world_position = camera
+                .viewport_to_world_2d(
+                    camera_global_transform,
+                    Vec2::new(window_width / 2.0, window_height / 2.0),
+                )
+                .unwrap();
+
+            let v =
+                CAMERA_SPEED * (mouse_world_position - window_center_world_position).normalize();
+            camera_transform.translation += v.extend(0.0);
+        }
+    } // else outside window
 }
