@@ -25,6 +25,8 @@ fn main() {
 
     app.add_plugins(StatsPlugin);
 
+    app.add_systems(Update, pan_camera);
+
     app.run();
 }
 
@@ -121,4 +123,36 @@ impl MyRand for Vec2 {
     fn gen_from_range(g: &mut StdRng, range: Range<f32>) -> Self {
         Vec2::new(g.gen_range(range.clone()), g.gen_range(range.clone()))
     }
+}
+
+const EDGE_THRESHOLD: f32 = 40.0;
+const CAMERA_SPEED: f32 = 10.0;
+
+fn pan_camera(
+    mut camera_q: Query<(&Camera, &GlobalTransform, &mut Transform), With<MainCamera>>,
+    windows_q: Query<&Window>,
+) {
+    let window = windows_q.single();
+    let (camera, camera_global_transform, mut camera_transform) = camera_q.single_mut();
+
+    if let Some(mouse_position) = windows_q.single().cursor_position() {
+        let radius = (window.width() / 2.0).min(window.height() / 2.0) - EDGE_THRESHOLD;
+
+        let window_center = Vec2::new(window.width() / 2.0, window.height() / 2.0);
+        let position_from_center = mouse_position - window_center;
+
+        if position_from_center.length() < radius {
+            return;
+        }
+
+        let t1 = camera
+            .viewport_to_world_2d(camera_global_transform, mouse_position)
+            .unwrap();
+        let t2 = camera
+            .viewport_to_world_2d(camera_global_transform, window_center)
+            .unwrap();
+
+        let dir = (t1 - t2).normalize();
+        camera_transform.translation += CAMERA_SPEED * dir.extend(0.0);
+    } // else outside window
 }

@@ -15,7 +15,7 @@ cargo doc --no-deps --open
 - [x] Change sprite type based on mass.
 - [x] Add realtime print out.
 - [x] Break up entitites into plugins for modularity.
-- [ ] Camera track largest (or single) mass ~~too disorientating~~. But is required now ...
+- [x] Camera track largest (or single) mass ~~too disorientating~~. But is required now ...
 - [x] Check for collisions and conserve momentum.
 - [x] Have deleted trails fade out (move the trail to a component without a rigid body and fade after in N frames - do this as another struct that adds a fade out param).
 - [ ] Lessen rotational inertial, so it spins when struct (might need to reduce restitution too) (or just conserve rotational inertia ... ). Then combine when they settle?
