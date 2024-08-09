@@ -7,6 +7,7 @@ use bevy_rapier2d::prelude::*;
 
 use celestial_body::{
     add_celestial_body, add_sprite, CelestialBody, CelestialBodyAssets, CelestialBodyPlugin,
+    TrajectoryPredictor,
 };
 use trails::{Trail, TrailsPlugin};
 
@@ -25,7 +26,8 @@ fn main() {
 
     app.add_plugins(StatsPlugin);
 
-    app.add_systems(Update, pan_camera);
+    // app.add_systems(Update, pan_camera);
+    app.add_systems(Update, track_main_mass);
 
     app.run();
 }
@@ -64,19 +66,22 @@ fn setup(
         CelestialBody::default().with_mass(mass),
     );
     commands.entity(entity).insert(Trail::default());
+    // commands.entity(entity).insert(TrajectoryPredictor);
+    commands.entity(entity).insert(MainMass);
 
-    let entity = commands.spawn_empty().id();
-    let mass = 5.0;
-    add_sprite(&mut commands, entity, &celestial_body_assets, mass);
-    add_celestial_body(
-        &mut commands,
-        entity,
-        CelestialBody::default()
-            .with_position(Vec2::new(-100f32, 0f32))
-            .with_velocity(Vec2::new(60.0, 60.0))
-            .with_mass(mass),
-    );
-    commands.entity(entity).insert(Trail::default());
+    // let entity = commands.spawn_empty().id();
+    // let mass = 5.0;
+    // add_sprite(&mut commands, entity, &celestial_body_assets, mass);
+    // add_celestial_body(
+    //     &mut commands,
+    //     entity,
+    //     CelestialBody::default()
+    //         .with_position(Vec2::new(-100f32, 0f32))
+    //         .with_velocity(Vec2::new(60.0, 60.0))
+    //         .with_mass(mass),
+    // );
+    // commands.entity(entity).insert(Trail::default());
+    // commands.entity(entity).insert(TrajectoryPredictor);
 
     let entity = commands.spawn_empty().id();
     let mass = 5.0;
@@ -86,31 +91,32 @@ fn setup(
         entity,
         CelestialBody::default()
             .with_position(Vec2::new(100f32, 0f32))
-            .with_velocity(Vec2::new(-100.0, -100.0))
+            .with_velocity(Vec2::new(-10.0, -10.0))
             .with_mass(mass),
     );
     commands.entity(entity).insert(Trail::default());
+    commands.entity(entity).insert(TrajectoryPredictor);
 
     // FIXME: Why is this not determinstic?
     // Add some bodies at random positions
-    let seed: [u8; 32] = [0; 32];
-    let mut rng = StdRng::from_seed(seed);
+    // let seed: [u8; 32] = [0; 32];
+    // let mut rng = StdRng::from_seed(seed);
 
-    for _ in 0..10 {
-        let mass = rng.gen_range(0.1..1.0) as f32;
-        let entity = commands.spawn_empty().id();
-        add_sprite(&mut commands, entity, &celestial_body_assets, mass);
-        add_celestial_body(
-            &mut commands,
-            entity,
-            CelestialBody {
-                position: Vec2::gen_from_range(&mut rng, -400.0..400.0),
-                velocity: Vec2::gen_from_range(&mut rng, -50.0..50.0),
-                mass,
-            },
-        );
-        commands.entity(entity).insert(Trail::default());
-    }
+    // for _ in 0..10 {
+    //     let mass = rng.gen_range(0.1..1.0) as f32;
+    //     let entity = commands.spawn_empty().id();
+    //     add_sprite(&mut commands, entity, &celestial_body_assets, mass);
+    //     add_celestial_body(
+    //         &mut commands,
+    //         entity,
+    //         CelestialBody {
+    //             position: Vec2::gen_from_range(&mut rng, -400.0..400.0),
+    //             velocity: Vec2::gen_from_range(&mut rng, -50.0..50.0),
+    //             mass,
+    //         },
+    //     );
+    //     commands.entity(entity).insert(Trail::default());
+    // }
 }
 
 /// Helper trait for generating random numbers for different types
@@ -127,6 +133,9 @@ impl MyRand for Vec2 {
 
 const EDGE_THRESHOLD: f32 = 40.0;
 const CAMERA_SPEED: f32 = 10.0;
+
+#[derive(Component)]
+struct MainMass;
 
 fn pan_camera(
     mut camera_q: Query<(&Camera, &GlobalTransform, &mut Transform), With<MainCamera>>,
@@ -155,4 +164,15 @@ fn pan_camera(
         let dir = (t1 - t2).normalize();
         camera_transform.translation += CAMERA_SPEED * dir.extend(0.0);
     } // else outside window
+}
+
+fn track_main_mass(
+    mut camera_q: Query<&mut Transform, With<MainCamera>>,
+    main_mass_q: Query<&Transform, (With<MainMass>, Without<MainCamera>)>,
+) {
+    let mut camera_transform = camera_q.single_mut();
+    let main_mass_transform = main_mass_q.single();
+
+    camera_transform.translation.x = main_mass_transform.translation.x;
+    camera_transform.translation.y = main_mass_transform.translation.y;
 }

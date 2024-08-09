@@ -1,6 +1,8 @@
+use bevy::core::FrameCount;
 use bevy::{math::NormedVectorSpace, prelude::*};
 use bevy_rapier2d::prelude::*;
 use std::f32::consts::PI;
+use std::ops::Range;
 
 // TODO: This is probs going to break things.
 use crate::MainCamera;
@@ -8,23 +10,47 @@ use crate::MainCamera;
 pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0)); //FIXME: This is broken
+        let pixels_per_meter = 10.0;
+        app.add_plugins(
+            RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(pixels_per_meter)
+                .in_fixed_schedule(),
+        ); //FIXME: This is broken
+
+        let mut config = RapierConfiguration::new(pixels_per_meter);
+        config.timestep_mode = TimestepMode::Fixed {
+            dt: 1e-3,
+            substeps: 1,
+        };
+
+        app.insert_resource(config);
 
         #[cfg(debug_assertions)]
         app.add_plugins(RapierDebugRenderPlugin::default());
 
-        app.add_systems(FixedFirst, reset_forces.in_set(PhysicsSet::SyncBackend))
-            .add_systems(FixedUpdate, apply_gravity.in_set(PhysicsSet::SyncBackend))
-            .add_systems(FixedUpdate, combine_bodies)
-            .init_resource::<CelestialBodyAssets>();
+        app.add_systems(
+            FixedUpdate,
+            (reset_forces, apply_gravity, get_orbital_elements)
+                .chain()
+                .in_set(PhysicsSet::StepSimulation),
+        )
+        // .add_systems(FixedUpdate, combine_bodies)
+        .init_resource::<CelestialBodyAssets>();
 
         app.init_resource::<MouseDragState>();
         app.add_systems(Update, spawn_on_mouse_drag);
 
         #[cfg(debug_assertions)]
         app.add_systems(Update, debug_draw_two_body_connection);
+
+        // app.add_systems(FixedUpdate, get_orbital_elements);
     }
 }
+
+fn set_up_stuff(mut rapier_context: ResMut<RapierContext>) {
+    rapier_context.integration_parameters.dt = 1e-6;
+}
+
+const GRAVITATIONAL_CONSTANT: f32 = 10.0; //FIXME: A resource ...
 
 // https://bevy-cheatbook.github.io/programming/res.html
 #[derive(Resource, Clone)]
@@ -147,7 +173,8 @@ pub fn add_celestial_body(commands: &mut Commands, entity: Entity, body: Celesti
             angvel: 0.0,
         })
         .insert(ActiveEvents::COLLISION_EVENTS)
-        .insert(TwoBodyProblem::default());
+        .insert(TwoBodyProblem::default())
+        .insert(GravityScale(0.0));
 }
 
 /// Zeros out external_forces and two body problem influence
@@ -162,6 +189,8 @@ fn reset_forces(mut query: Query<(&mut ExternalForce, &mut TwoBodyProblem)>) {
 // FIXME: Should use a "CelestialBody" component to differentiate from other bodies
 fn apply_gravity(
     rapier_context: Res<RapierContext>,
+    time: Res<Time<Fixed>>,
+    frame_count: Res<FrameCount>,
     mut query: Query<(
         Entity,
         &mut ExternalForce,
@@ -172,21 +201,21 @@ fn apply_gravity(
 ) {
     // Scale to SI units for force calculations
     let pixels_per_meter = rapier_context.integration_parameters.length_unit;
-    let gravitational_constant = 10.0;
     let mut bodies = query.iter_combinations_mut();
+
+    let mut count = 0;
 
     while let Some(
         [(entity1, mut force1, transform1, m1, mut two_body1), (entity2, mut force2, transform2, m2, mut two_body2)],
     ) = bodies.fetch_next()
     {
-        let direction = (transform2.translation - transform1.translation) / pixels_per_meter; //FIXME: Get this scale from the physics config
-        let direction2 = Vec2::new(direction.x, direction.y);
-        let r2 = direction2.norm_squared();
-        let force = gravitational_constant * m1.mass * m2.mass / r2 * direction2.normalize();
+        let r = (transform2.translation - transform1.translation).truncate() / pixels_per_meter; //FIXME: Get this scale from the physics config
+        let r2 = r.norm_squared();
+        let force = GRAVITATIONAL_CONSTANT * m1.mass * m2.mass * r.normalize() / r2;
 
         if force.is_finite() {
-            force1.force += force;
-            force2.force += -force;
+            force1.force = force;
+            force2.force = -force;
 
             // If the force is most influential, store the two body problem
             if two_body1.force.is_none() || two_body1.force.unwrap() < force.length() {
@@ -196,7 +225,15 @@ fn apply_gravity(
                 two_body2.update(entity1, force.length())
             }
         }
+
+        count += 1;
     }
+    println!(
+        "count: {count} fixed time: {} frame count: {} physics time: {}",
+        time.elapsed_seconds(),
+        frame_count.0,
+        rapier_context.integration_parameters.dt
+    );
 }
 
 use crate::Trail;
@@ -394,6 +431,103 @@ fn debug_draw_two_body_connection(
                 let end = other_transform.translation.truncate();
                 gizmos.line_2d(start, end, color);
             }
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct TrajectoryPredictor;
+
+// https://en.wikipedia.org/wiki/Kepler_orbit
+fn get_orbital_elements(
+    world: &World,
+    mut gizmos: Gizmos,
+    rapier_context: Res<RapierContext>,
+    query: Query<
+        (&Transform, &Velocity, &ReadMassProperties, &TwoBodyProblem),
+        With<TrajectoryPredictor>,
+    >,
+) {
+    for (transform, velocity, mass_properties, two_body_problem) in &query {
+        let other_entity = match two_body_problem.entity {
+            Some(v) => v,
+            None => continue,
+        };
+
+        let other_transform = match world.get::<Transform>(other_entity) {
+            Some(tf) => tf,
+            None => continue,
+        };
+
+        let other_velocity = match world.get::<Velocity>(other_entity) {
+            Some(v) => v,
+            None => continue,
+        };
+
+        let other_mass_properties = match world.get::<ReadMassProperties>(other_entity) {
+            Some(v) => v,
+            None => continue,
+        };
+
+        let pixels_per_meter = rapier_context.integration_parameters.length_unit;
+
+        // Polar orbital elements
+        let r = (transform.translation - other_transform.translation) / pixels_per_meter;
+        println!("{}", transform.translation / pixels_per_meter);
+        let v = (velocity.linvel - other_velocity.linvel).extend(0.0) / pixels_per_meter;
+        let mu = GRAVITATIONAL_CONSTANT * (mass_properties.mass + other_mass_properties.mass);
+        let h = r.cross(v);
+        let e_vector = (v.cross(h) / mu) - (r / r.length());
+        let e = e_vector.length();
+        let h2 = h.length_squared();
+        let p = h2 / mu;
+
+        println!(
+            "e: {e}\tp: {p} dt: {}",
+            rapier_context.integration_parameters.dt
+        );
+
+        let energy = 0.5 * v.length_squared() - mu / r.length();
+
+        println!("{energy}");
+
+        // let current_r = r.length();
+
+        // TODO: Get location of the periapsis alternatley offset by current theta as determined from r.length().
+        // let current_theta = ((p / r.length() - 1.0) / e).acos();
+
+        // let current_normalized_position = Vec2::new(
+        //     current_r * current_theta.cos(),
+        //     current_r * current_theta.sin(),
+        // );
+
+        // let delta = r.truncate() - current_normalized_position;
+
+        // r = p/(1 + e cos(theta))
+        let mut draw = |kilo: i32| {
+            let points: Vec<Vec2> = (-kilo..(kilo + 1))
+                .map(|i| {
+                    let phi = (i as f32) * 0.001 * PI;
+                    let radius = p / (1.0 + e * phi.cos());
+                    let orbital_position = Vec2::new(radius * phi.cos(), radius * phi.sin())
+                        + other_transform.translation.truncate() / pixels_per_meter;
+
+                    let screen_position = orbital_position * pixels_per_meter;
+                    screen_position
+                })
+                // Rotate the orbit
+                .collect();
+            gizmos.linestrip_2d(points, Color::BLACK);
+        };
+
+        if (0.0..1.0).contains(&e) {
+            // circle & ellipse
+            // Draw -+pi
+            draw(1000);
+        } else if e >= 1.0 {
+            // parabola, hyperbola
+            // Draw -+0.75*pi
+            draw(750);
         }
     }
 }
