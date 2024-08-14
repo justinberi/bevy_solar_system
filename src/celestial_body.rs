@@ -11,30 +11,58 @@ pub struct CelestialBodyPlugin;
 impl Plugin for CelestialBodyPlugin {
     fn build(&self, app: &mut App) {
         let pixels_per_meter = 10.0;
+
+        // Add custom systems to physics engine
+        // https://github.com/dimforge/bevy_rapier/blob/master/bevy_rapier2d/examples/custom_system_setup2.rs
         app.add_plugins(
             RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(pixels_per_meter)
-                .in_fixed_schedule(),
-        ); //FIXME: This is broken
+                .with_default_system_setup(false),
+        );
 
+        // after the update step
+        let stage = PostUpdate;
+        app.configure_sets(
+            stage.clone(),
+            (
+                PhysicsSet::SyncBackend,
+                PhysicsSet::StepSimulation,
+                PhysicsSet::Writeback,
+            )
+                .chain()
+                .before(TransformSystem::TransformPropagate),
+        );
+
+        // TODO: Compare with Particular on github when it is back up
+        app.add_systems(
+            stage,
+            (
+                (
+                    reset_forces,
+                    apply_gravity,
+                    get_orbital_elements,
+                    RapierPhysicsPlugin::<NoUserData>::get_systems(PhysicsSet::SyncBackend),
+                )
+                    .chain()
+                    .in_set(PhysicsSet::SyncBackend),
+                (RapierPhysicsPlugin::<NoUserData>::get_systems(PhysicsSet::StepSimulation))
+                    .in_set(PhysicsSet::StepSimulation),
+                RapierPhysicsPlugin::<NoUserData>::get_systems(PhysicsSet::Writeback)
+                    .in_set(PhysicsSet::Writeback),
+            ),
+        );
+
+        // Custom config
         let mut config = RapierConfiguration::new(pixels_per_meter);
         config.timestep_mode = TimestepMode::Fixed {
-            dt: 1e-3,
+            dt: 1e-4,
             substeps: 1,
         };
-
         app.insert_resource(config);
 
         #[cfg(debug_assertions)]
         app.add_plugins(RapierDebugRenderPlugin::default());
 
-        app.add_systems(
-            FixedUpdate,
-            (reset_forces, apply_gravity, get_orbital_elements)
-                .chain()
-                .in_set(PhysicsSet::StepSimulation),
-        )
-        // .add_systems(FixedUpdate, combine_bodies)
-        .init_resource::<CelestialBodyAssets>();
+        app.init_resource::<CelestialBodyAssets>();
 
         app.init_resource::<MouseDragState>();
         app.add_systems(Update, spawn_on_mouse_drag);
@@ -44,10 +72,6 @@ impl Plugin for CelestialBodyPlugin {
 
         // app.add_systems(FixedUpdate, get_orbital_elements);
     }
-}
-
-fn set_up_stuff(mut rapier_context: ResMut<RapierContext>) {
-    rapier_context.integration_parameters.dt = 1e-6;
 }
 
 const GRAVITATIONAL_CONSTANT: f32 = 10.0; //FIXME: A resource ...
