@@ -11,6 +11,8 @@ use std::ops::Range;
 // A configurable integrator would be best like in DRAKE MIT ...
 // Also look at https://github.com/aevyrie/big_space
 // Alternately mujuco might be a better way to go ...
+// It would make most sense to keep front end and backend logic and trasform updates separate.
+// Ie only use bevy for non-physics interaction
 
 // TODO: This is probs going to break things.
 use crate::MainCamera;
