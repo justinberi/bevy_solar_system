@@ -4,6 +4,12 @@ use bevy_rapier2d::prelude::*;
 use std::f32::consts::PI;
 use std::ops::Range;
 
+// In an external project ..
+// f64 and semi-implicit euler, dt=1e-6 conserves energy
+// f32 and semi-implicit euler, dt=1e-6 does not conserve enery
+// f64 and euler, dt=1e-6 does not conserve enery energy
+// A configurable integrator would be best like in DRAKE MIT ...
+
 // TODO: This is probs going to break things.
 use crate::MainCamera;
 
